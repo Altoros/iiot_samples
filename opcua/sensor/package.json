@@ -1,5 +1,5 @@
 {
-  "name": "iot-book",
+  "name": "sensor",
   "version": "1.0.0",
   "description": "",
   "main": "index.js",
@@ -10,7 +10,6 @@
   "author": "",
   "license": "ISC",
   "dependencies": {
-    "async": "^2.4.0",
     "node-opcua": "0.0.64"
   }
 }
