@@ -1,13 +1,30 @@
-const WebSocket = require('ws');
+var WebSocket = require('ws');
+var rpio = require('rpio');
 
-const ws = new WebSocket('ws://127.0.0.1:8080');
+var ws;
+var receiver = 'ws://REMOTE-SERVER-ADDRESS.com:8080';
+rpio.open(11, rpio.INPUT);
 
-ws.on('open', function open() {
-  ws.send('hello, server');
-});
+var establishConnection = function () {
+  ws = new WebSocket(receiver);
+  ws.on('close', establishConnection);
+  ws.on('error', establishConnection);
+};
+establishConnection();
 
-ws.on('message', function incoming(data, flags) {
-  // flags.binary will be set if a binary data is received.
-  // flags.masked will be set if the data was masked.
-  console.log('received: %s', data);
-});
+var sendStatus = function () {
+  var status = rpio.read(11) === 0;
+  console.log('light status: ' + status);
+
+  var data = JSON.stringify({
+    device: 'raspberry',
+    timestamp: Date.now(),
+    light: status
+  });
+
+  try { ws.send(data); }
+  catch (e) { console.log('failed to send data to ' + receiver); }
+
+  setTimeout(sendStatus, 1000);
+};
+sendStatus();
