@@ -1,0 +1,230 @@
+# Application level protocols: Modbus
+This example shows an application which runs on Raspberry Pi and sends data from Sensor module simulator and resends it to cloud.
+
+## Prepare hardware components
+* Raspberry Pi 3 (Model B)
+* Power Adapter (2A/5V)
+* MicroSD Card (8GB+) and SD Adapter
+* Ethernet cable for wired network connection
+
+## Prepare SD card
+* [Burn Raspbian image](https://styxit.com/2017/03/14/headless-raspberry-setup.html)
+* Create folder `/home/pi/hub`
+* Create file `/home/pi/hub/package.json` with the following contents:
+  ```
+  {
+    "name": "hub",
+    "version": "1.0.0",
+    "description": "",
+    "main": "index.js",
+    "scripts": {
+      "start": "node index.js",
+      "test": "echo \"Error: no test specified\" && exit 1"
+    },
+    "author": "",
+    "license": "ISC",
+    "dependencies": {
+      "modbus": "0.0.16",
+      "request": "^2.81.0"
+    }
+  }
+  ```
+* Create file `/home/pi/hub/index.js` with the following contents, replacing `REMOTE-SERVER-ADDRESS.com` and `REMOTE-SENSOR-ADDRESS` with real values:
+  ```
+  var request = require('request');
+  
+  var log = console.log;
+  //var mb = require('modbus').create(true); // enable debug output
+  var mb = require('modbus').create();
+  
+  var sensor = 'REMOTE-SENSOR-ADDRESS';
+  var receiver = 'http://REMOTE-SERVER-ADDRESS.com:8080';
+  
+  mb.onError(function (msg) {
+    log('ERROR', msg);
+  });
+  
+  // create master device
+  var ctx = mb.createMaster({
+  
+    // connection type and params
+    con: mb.createConTcp(sensor, 1502),
+    //con: mb.createConRtu(1, '/dev/ttyS1', 9600),
+  
+    // callback functions
+    onConnect: function () {
+      log('onConnect');
+      log(ctx.getReg(2));
+      ctx.setBit(1, false);
+  
+      //send to receiver
+      var data = {
+        device: 'sensor1',
+        timestamp: Date.now(),
+        reg2: ctx.getReg(2)
+      };
+      request.post({url: receiver, form: data}, function (err) {
+        if (err) console.log('Failed to send to ' + receiver);
+      });
+  
+      ctx.destroy();
+    },
+    onDestroy: function () {
+      log('onDestroy');
+    }
+  });
+  ```
+
+## Run the sensor simulator application
+* Create folder `sensor`
+* Create file `./sensor/package.json` with the following contents:
+   ```
+  {
+    "name": "sensor",
+    "version": "1.0.0",
+    "description": "",
+    "main": "index.js",
+    "scripts": {
+      "start": "node index.js",
+      "test": "echo \"Error: no test specified\" && exit 1"
+    },
+    "author": "",
+    "license": "ISC",
+    "dependencies": {
+      "modbus": "0.0.16"
+    }
+  }
+  ```
+* Create file `./sensor/index.js` with the following contents, replacing `REMOTE-HUB-ADDRESS.com` with real value:
+   ```
+  var log = console.log;
+  var mb = require('modbus').create();
+  
+  mb.onError(function (msg) {
+    log('ERROR', msg);
+  });
+  
+  // create device memory map
+  var data = mb.createData({ countReg: 5, countBit: 2 });
+  data.setReg(2, 321);
+  data.setBit(1, true);
+  data.dumpData(); // show memory map
+  
+  // create slave device
+  var ctx = mb.createSlave({
+  
+    // connection type and params
+    con: mb.createConTcp('REMOTE-HUB-ADDRESS.com', 1502),
+    //con: mb.createConRtu(1, '/dev/ttyS0', 9600),
+  
+    // data map
+    data: data,
+  
+    // callback functions
+    onQuery: function () {
+      log('onQuery');
+      //ctx.dumpData();
+      log(ctx.getBits(0, 2));
+    },
+    onDestroy: function () {
+      log('onDestroy');
+    }
+  });
+  
+  // destroy device
+  //setTimeout(function () {
+  //	ctx.destroy();
+  //}, 5000);
+   ```
+* Install Nodejs and dependencies:
+  ```
+  # Consult your PC platform docs for libmodbus install
+  # Consult your PC platform docs for Node.js install
+  npm install
+  ```
+* Finally, launch the application with `npm start`:
+  <img src="./_images/sensor_output.png" height="400">
+
+## Run the receiver application
+* Create folder `receiver`
+* Create file `./receiver/package.json` with the following contents:
+   ```
+  {
+    "name": "receiver",
+    "version": "1.0.0",
+    "description": "",
+    "main": "index.js",
+    "scripts": {
+      "start": "node index.js",
+      "test": "echo \"Error: no test specified\" && exit 1"
+    },
+    "author": "",
+    "license": "ISC",
+    "dependencies": {
+      "pg": "^6.2.3"
+    }
+  }
+  ```
+* Create file `./receiver/index.js` with the following contents:
+   ```
+  var http = require('http');
+  var querystring = require('querystring');
+  var Pool = require('pg').Pool;
+  var pool = new Pool({
+    user: 'user',
+    database: 'database',
+    password: 'password',
+    host: 'host',
+    port: 5432
+  });
+  
+  //ensure table exists in db
+  pool.query('CREATE TABLE IF NOT EXISTS "sensor-logs" (id serial NOT NULL PRIMARY KEY, data json NOT NULL)', function (err, result) {
+    if (err) console.log(err);
+  });
+  
+  http.createServer(function (req, res) {
+    req.on('data', function (chunk) {
+      var data = querystring.parse(chunk.toString());
+      console.log(data);
+  
+      //save in db
+      pool.query('INSERT INTO "sensor-logs" (data) VALUES ($1)', [data], function (err, result) {
+        if (err) console.log(err);
+      });
+    });
+    req.on('end', function () {
+      res.writeHead(200, 'OK', {'Content-Type': 'text/html'});
+      res.end('ok')
+    });
+  }).listen(process.env.PORT || 8080);
+   ```
+* Create file `./receiver/index.js` with the following contents:
+   ```
+  applications:
+  -
+    name: receiver
+    memory: 128M
+    random-route: true
+   ```
+* Deploy to cloud:
+  ```
+  # Consult your PC platform docs for cf CLI install
+  cf push
+  ```
+  <img src="./_images/receiver_output.png" height="400">
+
+## Run the hub application
+* Insert SD card into the RPi
+* Connect Ethernet cable and open SSH connection
+* Navigate to `/home/pi/hub` and install dependencies:
+  ```
+  # Install libmodbus
+  sudo apt-get install libmodbus5
+  # Install Node.js
+  curl -sL https://deb.nodesource.com/setup_6.x | sudo -E bash - sudo apt-get install -y nodejs
+  # Install dependencies
+  npm install
+  ```
+* Finally, launch the application with `npm start`:
+  <img src="./_images/hub_output.png" height="400">
