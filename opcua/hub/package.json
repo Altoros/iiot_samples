@@ -1,5 +1,5 @@
 {
-  "name": "iot-book",
+  "name": "hub",
   "version": "1.0.0",
   "description": "",
   "main": "index.js",
@@ -10,6 +10,8 @@
   "author": "",
   "license": "ISC",
   "dependencies": {
-    "node-opcua": "0.0.64"
+    "async": "^2.4.0",
+    "node-opcua": "0.0.64",
+    "request": "^2.81.0"
   }
 }

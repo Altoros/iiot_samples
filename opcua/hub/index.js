@@ -1,59 +1,126 @@
-/*global require,setInterval,console */
+/*global require,console,setTimeout */
 var opcua = require("node-opcua");
+var async = require("async");
+var request = require("request");
 
+var the_session, the_subscription;
+var client = new opcua.OPCUAClient();
+var sensor = "opc.tcp://REMOTE-SENSOR-ADDRESS:4334/UA/MyLittleServer";
+var receiver = "http://REMOTE-SERVER-ADDRESS.com:8080";
 
-// Let's create an instance of OPCUAServer
-var server = new opcua.OPCUAServer({
-    port: 4334, // the port of the listening socket of the server
-    resourcePath: "UA/MyLittleServer", // this path will be added to the endpoint resource name
-     buildInfo : {
-        productName: "MySampleServer1",
-        buildNumber: "7658",
-        buildDate: new Date(2014,5,2)
-    }
-});
+async.series([
 
-function post_initialize() {
-    console.log("initialized");
-    function construct_my_address_space(server) {
-    
-        var addressSpace = server.engine.addressSpace;
-        
-        // declare a new object
-        var device = addressSpace.addObject({
-            organizedBy: addressSpace.rootFolder.objects,
-            browseName: "MyDevice"
+    // step 1 : connect to
+    function (callback) {
+      client.connect(sensor, function (err) {
+        if (err) {
+          console.log("cannot connect to endpoint :", sensor);
+        } else {
+          console.log("connected!");
+        }
+        callback(err);
+      });
+    },
+
+    // step 2 : createSession
+    function (callback) {
+      client.createSession(function (err, session) {
+        if (!err) {
+          the_session = session;
+        }
+        callback(err);
+      });
+    },
+
+    // step 3 : read a variable with readVariableValue
+    function (callback) {
+      the_session.readVariableValue("ns=1;s=MyVariable1", function (err, dataValue) {
+        if (!err) {
+          console.log("MyVariable1 = ", dataValue.value.value);
+        }
+        callback(err);
+      });
+    },
+
+    // step 4 : set a variable with writeSingleNode
+    function (callback) {
+      the_session.writeSingleNode("ns=1;s=MyVariable1", new opcua.Variant({
+        dataType: opcua.DataType.Double,
+        value: 100
+      }), function (err) {
+        callback(err);
+      });
+    },
+
+    // step 5: install a subscription and install a monitored item for 10 seconds
+    function (callback) {
+      the_subscription = new opcua.ClientSubscription(the_session, {
+        requestedPublishingInterval: 1000,
+        requestedLifetimeCount: 10,
+        requestedMaxKeepAliveCount: 2,
+        maxNotificationsPerPublish: 10,
+        publishingEnabled: true,
+        priority: 10
+      });
+
+      the_subscription.on("started", function () {
+        console.log("subscription started for 2 seconds - subscriptionId=", the_subscription.subscriptionId);
+      }).on("keepalive", function () {
+        console.log("keepalive");
+      }).on("terminated", function () {
+        callback();
+      });
+
+      setTimeout(function () {
+        the_subscription.terminate();
+      }, 10000);
+
+      // install monitored item
+      var monitoredItem = the_subscription.monitor({
+          nodeId: opcua.resolveNodeId("ns=1;s=MyVariable1"),
+          attributeId: opcua.AttributeIds.Value
+        },
+        {
+          samplingInterval: 100,
+          discardOldest: true,
+          queueSize: 10
+        },
+        opcua.read_service.TimestampsToReturn.Both
+      );
+      console.log("-------------------------------------");
+
+      monitoredItem.on("changed", function (dataValue) {
+        console.log("MyVariable1 = ", dataValue.value.value);
+
+        //send to receiver
+        var data = {
+          device: 'sensor1',
+          timestamp: Date.now(),
+          MyVariable1: dataValue.value.value
+        };
+        request.post({url: receiver, form: data}, function (err) {
+          if (err) console.log('Failed to send to ' + receiver);
         });
-        
-        // add some variables 
-        // add a variable named MyVariable1 to the newly created folder "MyDevice"
-        var variable1 = 1;
-        
-        // emulate variable1 changing every 500 ms
-        setInterval(function(){  variable1+=1; }, 500);
-        
-        addressSpace.addVariable({
-            componentOf: device,
-            nodeId: "ns=1;s=MyVariable1", // a string nodeID
-            browseName: "MyVariable1",
-            dataType: "Double",
-            value: {
-                get: function () {
-                    return new opcua.Variant({dataType: opcua.DataType.Double, value: variable1 });
-                },
-                set: function (variant) {
-                    variable1 = parseFloat(variant.value);
-                    return opcua.StatusCodes.Good;
-                }
-            }
-        });
+      });
+    },
+
+    // close session
+    function (callback) {
+      the_session.close(function (err) {
+        if (err) {
+          console.log("session closed failed ?");
+        }
+        callback();
+      });
     }
-    construct_my_address_space(server);
-    server.start(function() {
-        console.log("Server is now listening ... ( press CTRL+C to stop)");
-        console.log("port ", server.endpoints[0].port);
-        var endpointUrl = server.endpoints[0].endpointDescriptions()[0].endpointUrl;
-        console.log(" the primary server endpoint url is ", endpointUrl );
+
+  ],
+  function (err) {
+    if (err) {
+      console.log("failure ", err);
+    } else {
+      console.log("done!");
+    }
+    client.disconnect(function () {
     });
-}
-server.initialize(post_initialize);
+  });
