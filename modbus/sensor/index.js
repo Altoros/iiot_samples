@@ -1,28 +1,38 @@
-'use strict';
-
 var log = console.log;
-//var mb = require('modbus').create(true); // enable debug output
 var mb = require('modbus').create();
 
 mb.onError(function (msg) {
   log('ERROR', msg);
 });
 
-// create master device
-var ctx = mb.createMaster({
+// create device memory map
+var data = mb.createData({ countReg: 5, countBit: 2 });
+data.setReg(2, 321);
+data.setBit(1, true);
+data.dumpData(); // show memory map
+
+// create slave device
+var ctx = mb.createSlave({
 
   // connection type and params
-  con: mb.createConTcp('127.0.0.1', 1502),
-  //con: mb.createConRtu(1, '/dev/ttyS1', 9600),
+  con: mb.createConTcp('REMOTE-HUB-ADDRESS.com', 1502),
+  //con: mb.createConRtu(1, '/dev/ttyS0', 9600),
+
+  // data map
+  data: data,
 
   // callback functions
-  onConnect: function () {
-    log('onConnect');
-    log(ctx.getReg(2));
-    ctx.setBit(1, false);
-    ctx.destroy();
+  onQuery: function () {
+    log('onQuery');
+    //ctx.dumpData();
+    log(ctx.getBits(0, 2));
   },
   onDestroy: function () {
     log('onDestroy');
   }
 });
+
+// destroy device
+//setTimeout(function () {
+//	ctx.destroy();
+//}, 5000);
