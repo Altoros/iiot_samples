@@ -1,40 +1,42 @@
-'use strict';
+var request = require('request');
 
 var log = console.log;
+//var mb = require('modbus').create(true); // enable debug output
 var mb = require('modbus').create();
+
+var sensor = 'REMOTE-SENSOR-ADDRESS';
+var receiver = 'http://REMOTE-SERVER-ADDRESS.com:8080';
 
 mb.onError(function (msg) {
   log('ERROR', msg);
 });
 
-// create device memory map
-var data = mb.createData({ countReg: 5, countBit: 2 });
-data.setReg(2, 321);
-data.setBit(1, true);
-data.dumpData(); // show memory map
-
-// create slave device
-var ctx = mb.createSlave({
+// create master device
+var ctx = mb.createMaster({
 
   // connection type and params
-  con: mb.createConTcp('127.0.0.1', 1502),
-  //con: mb.createConRtu(1, '/dev/ttyS0', 9600),
-
-  // data map
-  data: data,
+  con: mb.createConTcp(sensor, 1502),
+  //con: mb.createConRtu(1, '/dev/ttyS1', 9600),
 
   // callback functions
-  onQuery: function () {
-    log('onQuery');
-    //ctx.dumpData();
-    log(ctx.getBits(0, 2));
+  onConnect: function () {
+    log('onConnect');
+    log(ctx.getReg(2));
+    ctx.setBit(1, false);
+
+    //send to receiver
+    var data = {
+      device: 'sensor1',
+      timestamp: Date.now(),
+      reg2: ctx.getReg(2)
+    };
+    request.post({url: receiver, form: data}, function (err) {
+      if (err) console.log('Failed to send to ' + receiver);
+    });
+
+    ctx.destroy();
   },
   onDestroy: function () {
     log('onDestroy');
   }
 });
-
-// destroy device
-//setTimeout(function () {
-//	ctx.destroy();
-//}, 5000);
