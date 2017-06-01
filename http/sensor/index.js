@@ -1,7 +1,7 @@
 var rpiDhtSensor = require('rpi-dht-sensor');
 var request = require('request');
 
-var receiver = 'http://172.16.32.193:8080';
+var receiver = 'http://REMOTE-SERVER-ADDRESS.com:8080';
 var dht = new rpiDhtSensor.DHT11(2);
 
 function read () {
