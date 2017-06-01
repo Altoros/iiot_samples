@@ -1,5 +1,10 @@
 # Application level protocols: WebSocket
-This example shows an application which runs on Raspberry Pi and sends data from XD-80 Light Sensor module.
+This example shows an application which runs on Raspberry Pi and sends data from XD-80 Light Sensor module
+
+## Software dependencies
+* [Node.js 6+](https://nodejs.org/en/download/)
+* [rpio](https://www.npmjs.com/package/rpio)
+* [ws](https://www.npmjs.com/package/ws)
 
 ## Prepare hardware components
 * Raspberry Pi 3 (Model B)
@@ -38,37 +43,37 @@ This example shows an application which runs on Raspberry Pi and sends data from
   ```
   var WebSocket = require('ws');
   var rpio = require('rpio');
-  
+
   var ws;
   var receiver = 'ws://REMOTE-SERVER-ADDRESS.com:8080';
   rpio.open(11, rpio.INPUT);
-  
+
   var establishConnection = function () {
     ws = new WebSocket(receiver);
     ws.on('close', establishConnection);
     ws.on('error', establishConnection);
   };
   establishConnection();
-  
+
   var sendStatus = function () {
     var status = rpio.read(11) === 0;
     console.log('light status: ' + status);
-  
+
     var data = JSON.stringify({
       device: 'raspberry',
       timestamp: Date.now(),
       light: status
     });
-  
+
     try { ws.send(data); }
     catch (e) { console.log('failed to send data to ' + receiver); }
-  
+
     setTimeout(sendStatus, 1000);
   };
   sendStatus();
   ```
 
-## Run the sensor application
+## Run the sensor application on RPi
 * Insert SD card into the RPi
 * Connect Ethernet cable and open SSH connection
 * Navigate to `/home/pi/sensor` and install dependencies:
@@ -81,7 +86,7 @@ This example shows an application which runs on Raspberry Pi and sends data from
 * Finally, launch the application with `npm start`:
   <img src="./_images/sensor_output.png" height="400">
 
-## Run the receiver application
+## Run the receiver application on your PC
 * Create folder `receiver`
 * Create file `./receiver/package.json` with the following contents:
    ```
@@ -104,16 +109,16 @@ This example shows an application which runs on Raspberry Pi and sends data from
 * Create file `./receiver/index.js` with the following contents:
    ```
   const WebSocket = require('ws');
-  
+
   const wss = new WebSocket.Server({port: 8080}, function () {
     console.log('Websocket server started');
   });
-  
+
   wss.on('connection', function connection(ws) {
     ws.on('message', function incoming(message) {
       console.log('received: ', message);
     });
-  
+
     // Send message to connected client
     ws.send('hello, client');
   });
