@@ -1,5 +1,10 @@
 # Application level protocols: HTTP
-This example shows an application which runs on Raspberry Pi and sends data from DHT-12 Temparature and Humidity Sensor module.
+This example shows an application which runs on Raspberry Pi and sends data from DHT-12 Temparature and Humidity Sensor module
+
+## Software dependencies
+* [Node.js 6+](https://nodejs.org/en/download/)
+* [request](https://www.npmjs.com/package/request)
+* [rpi-dht-sensor](https://www.npmjs.com/package/rpi-dht-sensor)
 
 ## Prepare hardware components
 * Raspberry Pi 3 (Model B)
@@ -13,16 +18,17 @@ This example shows an application which runs on Raspberry Pi and sends data from
 <img src="./_images/pinout.png" height="400">
 
 ## Prepare SD card
-* Burn Raspbian image
+* [Burn Raspbian image](https://styxit.com/2017/03/14/headless-raspberry-setup.html)
 * Create folder `/home/pi/sensor`
 * Create file `/home/pi/sensor/package.json` with the following contents:
   ```
   {
-    "name": "dht_12",
+    "name": "sensor",
     "version": "1.0.0",
     "description": "",
     "main": "index.js",
     "scripts": {
+      "start": "node index.js",
       "test": "echo \"Error: no test specified\" && exit 1"
     },
     "author": "",
@@ -33,7 +39,7 @@ This example shows an application which runs on Raspberry Pi and sends data from
     }
   }
   ```
-* Create file `/home/pi/sensor/index.js` with the following contents:
+* Create file `/home/pi/sensor/index.js` with the following contents, replacing `REMOTE-SERVER-ADDRESS.com` with real value:
   ```
   var rpiDhtSensor = require('rpi-dht-sensor');
   var request = require('request');
@@ -48,6 +54,7 @@ This example shows an application which runs on Raspberry Pi and sends data from
       humidity: readout.humidity.toFixed(2)
     };
     console.log(data);
+    data.device = 'raspberry';
     request.post({url: receiver, form: data}, function(err) {
       if(err) console.log('Failed to send to ' + receiver);
     });
@@ -57,7 +64,7 @@ This example shows an application which runs on Raspberry Pi and sends data from
   read();
   ```
 
-## Run the sensor application
+## Run the sensor application on RPi
 * Insert SD card into the RPi
 * Connect Ethernet cable and open SSH connection
 * Navigate to `/home/pi/sensor` and install dependencies:
@@ -70,7 +77,7 @@ This example shows an application which runs on Raspberry Pi and sends data from
 * Finally, launch the application with `npm start`:
   <img src="./_images/sensor_output.png" height="400">
 
-## Run the receiver application
+## Run the receiver application on your PC
 * Create folder `receiver`
 * Create file `./receiver/package.json` with the following contents:
    ```
@@ -80,6 +87,7 @@ This example shows an application which runs on Raspberry Pi and sends data from
     "description": "",
     "main": "index.js",
     "scripts": {
+      "start": "node index.js",
       "test": "echo \"Error: no test specified\" && exit 1"
     },
     "author": "",
@@ -92,12 +100,12 @@ This example shows an application which runs on Raspberry Pi and sends data from
   var querystring = require('querystring');
 
   http.createServer(function (req, res) {
-    req.on('data', chunk => {
+    req.on('data', function (chunk) {
       var data = querystring.parse(chunk.toString());
       console.log(data);
     });
-    req.on('end', () => {
-      res.writeHead(200, 'OK', {'Content-Type': 'text/html'})
+    req.on('end', function () {
+      res.writeHead(200, 'OK', {'Content-Type': 'text/html'});
       res.end('Data received.')
     });
   }).listen(8080);
@@ -109,4 +117,3 @@ This example shows an application which runs on Raspberry Pi and sends data from
   ```
 * Finally, launch the application with `npm start`:
   <img src="./_images/receiver_output.png" height="400">
-
