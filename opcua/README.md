@@ -1,5 +1,13 @@
 # Application level protocols: OPC UA
-This example shows an application which runs on Raspberry Pi and sends data from Sensor module simulator and resends it to cloud.
+This example shows an application which runs on Raspberry Pi, collects data from OPC-UA simulator and sends the data to the cloud
+
+## Software dependencies
+* [Node.js 6+](https://nodejs.org/en/download/)
+* [PostgreSQL](https://www.postgresql.org/download/)
+* [CF CLI](https://github.com/cloudfoundry/cli#downloads)
+* [request](https://www.npmjs.com/package/request)
+* [node-opcua](https://www.npmjs.com/package/node-opcua)
+* [async](https://www.npmjs.com/package/async)
 
 ## Prepare hardware components
 * Raspberry Pi 3 (Model B)
@@ -36,14 +44,14 @@ This example shows an application which runs on Raspberry Pi and sends data from
   var opcua = require("node-opcua");
   var async = require("async");
   var request = require("request");
-  
+
   var the_session, the_subscription;
   var client = new opcua.OPCUAClient();
   var sensor = "opc.tcp://REMOTE-SENSOR-ADDRESS:4334/UA/MyLittleServer";
   var receiver = "http://REMOTE-SERVER-ADDRESS.com:8080";
-  
+
   async.series([
-  
+
       // step 1 : connect to
       function (callback) {
         client.connect(sensor, function (err) {
@@ -55,7 +63,7 @@ This example shows an application which runs on Raspberry Pi and sends data from
           callback(err);
         });
       },
-  
+
       // step 2 : createSession
       function (callback) {
         client.createSession(function (err, session) {
@@ -65,7 +73,7 @@ This example shows an application which runs on Raspberry Pi and sends data from
           callback(err);
         });
       },
-  
+
       // step 3 : read a variable with readVariableValue
       function (callback) {
         the_session.readVariableValue("ns=1;s=MyVariable1", function (err, dataValue) {
@@ -75,7 +83,7 @@ This example shows an application which runs on Raspberry Pi and sends data from
           callback(err);
         });
       },
-  
+
       // step 4 : set a variable with writeSingleNode
       function (callback) {
         the_session.writeSingleNode("ns=1;s=MyVariable1", new opcua.Variant({
@@ -85,7 +93,7 @@ This example shows an application which runs on Raspberry Pi and sends data from
           callback(err);
         });
       },
-  
+
       // step 5: install a subscription and install a monitored item for 10 seconds
       function (callback) {
         the_subscription = new opcua.ClientSubscription(the_session, {
@@ -96,7 +104,7 @@ This example shows an application which runs on Raspberry Pi and sends data from
           publishingEnabled: true,
           priority: 10
         });
-  
+
         the_subscription.on("started", function () {
           console.log("subscription started for 2 seconds - subscriptionId=", the_subscription.subscriptionId);
         }).on("keepalive", function () {
@@ -104,11 +112,11 @@ This example shows an application which runs on Raspberry Pi and sends data from
         }).on("terminated", function () {
           callback();
         });
-  
+
         setTimeout(function () {
           the_subscription.terminate();
         }, 10000);
-  
+
         // install monitored item
         var monitoredItem = the_subscription.monitor({
             nodeId: opcua.resolveNodeId("ns=1;s=MyVariable1"),
@@ -122,10 +130,10 @@ This example shows an application which runs on Raspberry Pi and sends data from
           opcua.read_service.TimestampsToReturn.Both
         );
         console.log("-------------------------------------");
-  
+
         monitoredItem.on("changed", function (dataValue) {
           console.log("MyVariable1 = ", dataValue.value.value);
-  
+
           //send to receiver
           var data = {
             device: 'sensor1',
@@ -137,7 +145,7 @@ This example shows an application which runs on Raspberry Pi and sends data from
           });
         });
       },
-  
+
       // close session
       function (callback) {
         the_session.close(function (err) {
@@ -147,7 +155,7 @@ This example shows an application which runs on Raspberry Pi and sends data from
           callback();
         });
       }
-  
+
     ],
     function (err) {
       if (err) {
@@ -159,10 +167,8 @@ This example shows an application which runs on Raspberry Pi and sends data from
       });
     });
   ```
-
-## Run the sensor simulator application
-* Create folder `sensor`
-* Create file `./sensor/package.json` with the following contents:
+* Create folder `/home/pi/sensor`
+* Create file `/home/pi/sensor/package.json` with the following contents:
    ```
   {
     "name": "sensor",
@@ -180,12 +186,12 @@ This example shows an application which runs on Raspberry Pi and sends data from
     }
   }
   ```
-* Create file `./sensor/index.js` with the following contents:
+* Create file `/home/pi/sensor/index.js` with the following contents:
    ```
   /*global require,setInterval,console */
   var opcua = require("node-opcua");
-  
-  
+
+
   // Let's create an instance of OPCUAServer
   var server = new opcua.OPCUAServer({
       port: 4334, // the port of the listening socket of the server
@@ -196,26 +202,26 @@ This example shows an application which runs on Raspberry Pi and sends data from
           buildDate: new Date(2014,5,2)
       }
   });
-  
+
   function post_initialize() {
       console.log("initialized");
       function construct_my_address_space(server) {
-      
+
           var addressSpace = server.engine.addressSpace;
-          
+
           // declare a new object
           var device = addressSpace.addObject({
               organizedBy: addressSpace.rootFolder.objects,
               browseName: "MyDevice"
           });
-          
-          // add some variables 
+
+          // add some variables
           // add a variable named MyVariable1 to the newly created folder "MyDevice"
           var variable1 = 1;
-          
+
           // emulate variable1 changing every 500 ms
           setInterval(function(){  variable1+=1; }, 500);
-          
+
           addressSpace.addVariable({
               componentOf: device,
               nodeId: "ns=1;s=MyVariable1", // a string nodeID
@@ -242,15 +248,31 @@ This example shows an application which runs on Raspberry Pi and sends data from
   }
   server.initialize(post_initialize);
    ```
-* Install Nodejs and dependencies:
+
+## Run hub application on RPi
+* Insert SD card into the RPi
+* Connect Ethernet cable and open SSH connection
+* Navigate to `/home/pi/hub` and install dependencies:
   ```
-  # Consult your PC platform docs for Node.js install
+  # Install Node.js
+  curl -sL https://deb.nodesource.com/setup_6.x | sudo -E bash - sudo apt-get install -y nodejs
+  # Install dependencies
+  npm install
+  ```
+* Finally, launch the application with `npm start`:
+  <img src="./_images/hub_output.png" height="400">
+
+## Run simulator application on RPi
+* Open SSH connection
+* Navigate to `/home/pi/sensor` and install dependencies:
+  ```
   npm install
   ```
 * Finally, launch the application with `npm start`:
   <img src="./_images/sensor_output.png" height="400">
 
-## Run the receiver application
+## Run the receiver application on your PC
+* Install and launch PostgreSQL
 * Create folder `receiver`
 * Create file `./receiver/package.json` with the following contents:
    ```
@@ -270,7 +292,7 @@ This example shows an application which runs on Raspberry Pi and sends data from
     }
   }
   ```
-* Create file `./receiver/index.js` with the following contents:
+* Create file `./receiver/index.js` with the following contents, replacing database credentials with the correct ones:
    ```
   var http = require('http');
   var querystring = require('querystring');
@@ -282,17 +304,17 @@ This example shows an application which runs on Raspberry Pi and sends data from
     host: 'host',
     port: 5432
   });
-  
+
   //ensure table exists in db
   pool.query('CREATE TABLE IF NOT EXISTS "sensor-logs" (id serial NOT NULL PRIMARY KEY, data json NOT NULL)', function (err, result) {
     if (err) console.log(err);
   });
-  
+
   http.createServer(function (req, res) {
     req.on('data', function (chunk) {
       var data = querystring.parse(chunk.toString());
       console.log(data);
-  
+
       //save in db
       pool.query('INSERT INTO "sensor-logs" (data) VALUES ($1)', [data], function (err, result) {
         if (err) console.log(err);
@@ -304,7 +326,17 @@ This example shows an application which runs on Raspberry Pi and sends data from
     });
   }).listen(process.env.PORT || 8080);
    ```
-* Create file `./receiver/index.js` with the following contents:
+* Install dependencies:
+  ```
+  npm install
+  ```
+* Finally, launch the application with `npm start`:
+  <img src="./_images/receiver_output.png" height="400">
+
+## Run the receiver in the Predix
+* Install and point CF CLI to your Predix account
+* Create PostgreSQL service and obtain credentials
+* Create file `./receiver/manifest.yml` with the following contents:
    ```
   applications:
   -
@@ -312,22 +344,9 @@ This example shows an application which runs on Raspberry Pi and sends data from
     memory: 128M
     random-route: true
    ```
-* Deploy to cloud:
+* Replace database credentials in `./receiver/index.js`
+* Deploy to the cloud:
   ```
-  # Consult your PC platform docs for cf CLI install
   cf push
   ```
-  <img src="./_images/receiver_output.png" height="400">
-
-## Run the hub application
-* Insert SD card into the RPi
-* Connect Ethernet cable and open SSH connection
-* Navigate to `/home/pi/hub` and install dependencies:
-  ```
-  # Install Node.js
-  curl -sL https://deb.nodesource.com/setup_6.x | sudo -E bash - sudo apt-get install -y nodejs
-  # Install dependencies
-  npm install
-  ```
-* Finally, launch the application with `npm start`:
-  <img src="./_images/hub_output.png" height="400">
+* Change the REMOTE-SERVER-ADDRESS in `hub` application on RPi to the newly deployed `receiver`
