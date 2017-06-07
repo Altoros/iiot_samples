@@ -1,13 +1,14 @@
 # Application level protocols: OPC UA
 This example shows an application which runs on Raspberry Pi, collects data from OPC-UA simulator and sends the data to the cloud
 
-## Software dependencies
+## Software
 * [Node.js 6+](https://nodejs.org/en/download/)
 * [PostgreSQL](https://www.postgresql.org/download/)
 * [CF CLI](https://github.com/cloudfoundry/cli#downloads)
 * [request](https://www.npmjs.com/package/request)
 * [node-opcua](https://www.npmjs.com/package/node-opcua)
 * [async](https://www.npmjs.com/package/async)
+* [Docker](https://docs.docker.com/engine/installation/)
 
 ## Prepare hardware components
 * Raspberry Pi 3 (Model B)
@@ -167,6 +168,10 @@ This example shows an application which runs on Raspberry Pi, collects data from
       });
     });
   ```
+* Create file `/home/pi/hub/Dockerfile` with the following contents:
+  ```
+  FROM hypriot/rpi-node:boron-onbuild
+  ```
 * Create folder `/home/pi/sensor`
 * Create file `/home/pi/sensor/package.json` with the following contents:
    ```
@@ -248,31 +253,42 @@ This example shows an application which runs on Raspberry Pi, collects data from
   }
   server.initialize(post_initialize);
    ```
-
-## Run hub application on RPi
-* Insert SD card into the RPi
-* Connect Ethernet cable and open SSH connection
-* Navigate to `/home/pi/hub` and install dependencies:
+* Create file `/home/pi/sensor/Dockerfile` with the following contents:
   ```
-  # Install Node.js
-  curl -sL https://deb.nodesource.com/setup_6.x | sudo -E bash - sudo apt-get install -y nodejs
-  # Install dependencies
-  npm install
+  FROM hypriot/rpi-node:boron-onbuild
   ```
-* Finally, launch the application with `npm start`:
-  <img src="./_images/hub_output.png" height="400">
 
 ## Run simulator application on RPi
+* Insert SD card into the RPi
+* Connect Ethernet cable and open SSH connection
 * Open SSH connection
-* Navigate to `/home/pi/sensor` and install dependencies:
+* Navigate to `/home/pi/sensor`
+* Build an image and run Docker container:
   ```
-  npm install
+  # Build an image from a Dockerfile
+  docker build -t opcua-sensor .
+  #
+  # Run container in foreground
+  docker run -p 4334:4334 --privileged -it --rm --name opcua-sensor-container opcua-sensor
+  #
+  # Run container in background
+  # docker run -p 4334:4334 --privileged -d  --rm --name opcua-sensor-container opcua-sensor
+  #
+  # Fetch the logs of a container
+  # docker logs -f opcua-sensor-container
+  #
+  # Stop running container
+  # docker stop opcua-sensor-container
   ```
-* Finally, launch the application with `npm start`:
   <img src="./_images/sensor_output.png" height="400">
 
 ## Run the receiver application on your PC
-* Install and launch PostgreSQL
+* Install and launch PostgreSQL container:
+  ```
+  docker run --name postgres-container -e POSTGRES_PASSWORD=password -it -p 5433:5432 postgres
+  
+  docker exec -it postgres-container createdb -U postgres iot-book
+  ```
 * Create folder `receiver`
 * Create file `./receiver/package.json` with the following contents:
    ```
@@ -326,11 +342,29 @@ This example shows an application which runs on Raspberry Pi, collects data from
     });
   }).listen(process.env.PORT || 8080);
    ```
-* Install dependencies:
+* Create file `./receiver/Dockerfile` with the following contents:
+   ```
+  FROM node:boron-onbuild
+  
+  EXPOSE 8080
+   ```
+* Build an image and run Docker container:
   ```
-  npm install
+  # Build an image from a Dockerfile
+  docker build -t opcua-receiver .
+  
+  # Run container in foreground
+  docker run -p 8080:8080 -it --rm --name opcua-receiver-container opcua-receiver
+  
+  # Run container in background
+  # docker run -p 8080:8080 -d  --rm --name opcua-receiver-container opcua-receiver
+  
+  # Fetch the logs of a container
+  # docker logs -f opcua-sensor-container
+  
+  # Stop running container
+  # docker stop opcua-receiver-container
   ```
-* Finally, launch the application with `npm start`:
   <img src="./_images/receiver_output.png" height="400">
 
 ## Run the receiver in the Predix
@@ -350,3 +384,25 @@ This example shows an application which runs on Raspberry Pi, collects data from
   cf push
   ```
 * Change the REMOTE-SERVER-ADDRESS in `hub` application on RPi to the newly deployed `receiver`
+
+## Run hub application on RPi
+* Open SSH connection
+* Navigate to `/home/pi/hub`
+* Build an image and run Docker container:
+  ```
+  # Build an image from a Dockerfile
+  docker build -t opcua-hub .
+  #
+  # Run container in foreground
+  docker run --privileged -it --rm --name opcua-hub-container opcua-hub
+  #
+  # Run container in background
+  # docker run --privileged -d  --rm --name opcua-hub-container opcua-hub
+  #
+  # Fetch the logs of a container
+  # docker logs -f opcua-hub-container
+  #
+  # Stop running container
+  # docker stop opcua-hub-container
+  ```
+  <img src="./_images/hub_output.png" height="400">
