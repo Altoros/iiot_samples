@@ -1,12 +1,13 @@
 # Application level protocols: Modbus
 This example shows an application which runs on Raspberry Pi, collects the data from Modbus simulator and sends it to the cloud
 
-## Software dependencies
+## Software
 * [Node.js 6+](https://nodejs.org/en/download/)
 * [PostgreSQL](https://www.postgresql.org/download/)
 * [CF CLI](https://github.com/cloudfoundry/cli#downloads)
 * [request](https://www.npmjs.com/package/request)
 * [modbus](https://www.npmjs.com/package/modbus)
+* [Docker](https://docs.docker.com/engine/installation/)
 
 ## Prepare hardware components
 * Raspberry Pi 3 (Model B)
@@ -81,6 +82,12 @@ This example shows an application which runs on Raspberry Pi, collects the data 
     }
   });
   ```
+* Create file `/home/pi/hub/Dockerfile` with the following contents:
+  ```
+  FROM hypriot/rpi-node:boron-onbuild
+
+  RUN apt-get update && apt-get install -y libmodbus5
+  ```
 * Create folder `/home/pi/sensor`
 * Create file `/home/pi/sensor/package.json` with the following contents:
    ```
@@ -141,33 +148,65 @@ This example shows an application which runs on Raspberry Pi, collects the data 
   //	ctx.destroy();
   //}, 5000);
    ```
+* Create file `/home/pi/sensor/Dockerfile` with the following contents:
+  ```
+  FROM hypriot/rpi-node:boron-onbuild
+
+  RUN apt-get update && apt-get install -y libmodbus5
+  ```
 
 ## Run hub application on RPi
 * Insert SD card into the RPi
 * Connect Ethernet cable and open SSH connection
-* Navigate to `/home/pi/hub` and install dependencies:
+* Navigate to `/home/pi/hub`
+* Build an image and run Docker container:
   ```
-  # Install libmodbus
-  sudo apt-get install libmodbus5
-  # Install Node.js
-  curl -sL https://deb.nodesource.com/setup_6.x | sudo -E bash - sudo apt-get install -y nodejs
-  # Install dependencies
-  npm install
+  # Build an image from a Dockerfile
+  docker build -t modbus-hub .
+  #
+  # Run container in foreground
+  docker run --privileged -it --rm --name modbus-hub-container modbus-hub
+  #
+  # Run container in background
+  # docker run --privileged -d  --rm --name modbus-hub-container modbus-hub
+  #
+  # Fetch the logs of a container
+  # docker logs -f modbus-hub-container
+  #
+  # Stop running container
+  # docker stop modbus-hub-container
   ```
-* Finally, launch the application with `npm start`:
   <img src="./_images/hub_output.png" height="400">
 
 ## Run simulator application on RPi
 * Open SSH connection
-* Navigate to `/home/pi/sensor` and install dependencies:
+* Navigate to `/home/pi/sensor`
+* Build an image and run Docker container:
   ```
-  npm install
+  # Build an image from a Dockerfile
+  docker build -t modbus-sensor .
+  #
+  # Run container in foreground
+  docker run -p 1502:1502 --privileged -it --rm --name modbus-sensor-container modbus-sensor
+  #
+  # Run container in background
+  # docker run -p 1502:1502 --privileged -d  --rm --name modbus-sensor-container modbus-sensor
+  #
+  # Fetch the logs of a container
+  # docker logs -f modbus-sensor-container
+  #
+  # Stop running container
+  # docker stop modbus-sensor-container
   ```
-* Finally, launch the application with `npm start`:
   <img src="./_images/sensor_output.png" height="400">
 
 ## Run the receiver application on your PC
-* Install and launch PostgreSQL
+* Install and launch PostgreSQL container:
+  ```
+  docker run --name postgres-container -e POSTGRES_PASSWORD=password -it -p 5433:5432 postgres
+  
+  docker exec -it postgres-container createdb -U postgres iot-book
+  ```
 * Create folder `receiver`
 * Create file `./receiver/package.json` with the following contents:
    ```
@@ -221,11 +260,30 @@ This example shows an application which runs on Raspberry Pi, collects the data 
     });
   }).listen(process.env.PORT || 8080);
    ```
-* Install dependencies:
+* Create file `./receiver/Dockerfile` with the following contents:
+   ```
+  FROM node:boron-onbuild
+
+  EXPOSE 8080
+   ```
+* Navigate to `./receiver`
+* Build an image and run Docker container:
   ```
-  npm install
+  # Build an image from a Dockerfile
+  docker build -t modbus-receiver .
+  
+  # Run container in foreground
+  docker run -p 8080:8080 -it --rm --name modbus-receiver-container modbus-receiver
+  
+  # Run container in background
+  # docker run -p 8080:8080 -d  --rm --name modbus-receiver-container modbus-receiver
+  
+  # Fetch the logs of a container
+  # docker logs -f modbus-sensor-container
+  
+  # Stop running container
+  # docker stop modbus-receiver-container
   ```
-* Finally, launch the application with `npm start`:
   <img src="./_images/receiver_output.png" height="400">
 
 ## Run the receiver in the Predix
