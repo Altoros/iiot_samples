@@ -1,10 +1,11 @@
 # Application level protocols: WebSocket
 This example shows an application which runs on Raspberry Pi and sends data from XD-80 Light Sensor module
 
-## Software dependencies
+## Software
 * [Node.js 6+](https://nodejs.org/en/download/)
 * [rpio](https://www.npmjs.com/package/rpio)
 * [ws](https://www.npmjs.com/package/ws)
+* [Docker](https://docs.docker.com/engine/installation/)
 
 ## Prepare hardware components
 * Raspberry Pi 3 (Model B)
@@ -72,18 +73,32 @@ This example shows an application which runs on Raspberry Pi and sends data from
   };
   sendStatus();
   ```
+* Create file `/home/pi/sensor/Dockerfile` with the following contents:
+  ```
+  FROM hypriot/rpi-node:boron-onbuild
+  ```
 
 ## Run the sensor application on RPi
 * Insert SD card into the RPi
 * Connect Ethernet cable and open SSH connection
-* Navigate to `/home/pi/sensor` and install dependencies:
+* Navigate to `/home/pi/sensor`
+* Build an image and run Docker container:
   ```
-  # Install Node.js
-  curl -sL https://deb.nodesource.com/setup_6.x | sudo -E bash - sudo apt-get install -y nodejs
-  # Install dependencies
-  npm install
+  # Build an image from a Dockerfile
+  docker build -t websocket-sensor .
+  #
+  # Run container in foreground
+  docker run --privileged -it --rm --name websocket-sensor-container websocket-sensor
+  #
+  # Run container in background
+  # docker run --privileged -d  --rm --name websocket-sensor-container websocket-sensor
+  #
+  # Fetch the logs of a container
+  # docker logs -f websocket-sensor-container
+  #
+  # Stop running container
+  # docker stop websocket-sensor-container
   ```
-* Finally, launch the application with `npm start`:
   <img src="./_images/sensor_output.png" height="400">
 
 ## Run the receiver application on your PC
@@ -123,10 +138,28 @@ This example shows an application which runs on Raspberry Pi and sends data from
     ws.send('hello, client');
   });
    ```
-* Install Nodejs and dependencies:
+* Create file `./receiver/Dockerfile` with the following contents:
+   ```
+  FROM node:boron-onbuild
+  
+  EXPOSE 8080
+   ```
+* Navigate to `./receiver`
+* Build an image and run Docker container:
   ```
-  # Consult your PC platform docs for Node.js install
-  npm install
+  # Build an image from a Dockerfile
+  docker build -t websocket-receiver .
+  
+  # Run container in foreground
+  docker run -p 8080:8080 -it --rm --name websocket-receiver-container websocket-receiver
+  
+  # Run container in background
+  # docker run -p 8080:8080 -d  --rm --name websocket-receiver-container websocket-receiver
+  
+  # Fetch the logs of a container
+  # docker logs -f websocket-sensor-container
+  
+  # Stop running container
+  # docker stop websocket-receiver-container
   ```
-* Finally, launch the application with `npm start`:
   <img src="./_images/receiver_output.png" height="400">
