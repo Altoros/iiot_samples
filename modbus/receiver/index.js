@@ -2,11 +2,11 @@ var http = require('http');
 var querystring = require('querystring');
 var Pool = require('pg').Pool;
 var pool = new Pool({
-  user: 'user',
-  database: 'database',
+  user: 'postgres',
+  database: 'iot-book',
   password: 'password',
   host: 'host',
-  port: 5432
+  port: 5433
 });
 
 //ensure table exists in db
