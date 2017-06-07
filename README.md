@@ -3,7 +3,7 @@ This repo contains the example IIoT application which runs on Raspberry Pi and s
 
 *	Hardware for the prototypes: Raspberry Pi, Intel Edison
 *	[Application level protocols: HTTP](./http)
-*	[Application level protocols: WebSocket (code only)](./websocket)
-* [Industrial M2M protocols: Modbus (code only)](./modbus)
-* [Industrial M2M protocols: OPC (code only)](./opcua)
+*	[Application level protocols: WebSocket](./websocket)
+* [Industrial M2M protocols: Modbus](./modbus)
+* [Industrial M2M protocols: OPC](./opcua)
 *	Storage options in Predix
