@@ -15,7 +15,7 @@ data.dumpData(); // show memory map
 var ctx = mb.createSlave({
 
   // connection type and params
-  con: mb.createConTcp('REMOTE-HUB-ADDRESS.com', 1502),
+  con: mb.createConTcp('0.0.0.0', 1502),
   //con: mb.createConRtu(1, '/dev/ttyS0', 9600),
 
   // data map
