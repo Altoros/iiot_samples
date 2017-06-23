@@ -19,7 +19,20 @@ This example shows an application which runs on Raspberry Pi and sends data from
 <img src="./_images/pinout.png" height="400">
 
 ## Prepare SD card
-* [Burn Raspbian image](https://styxit.com/2017/03/14/headless-raspberry-setup.html)
+* Download [the latest Raspbian LITE image](https://www.raspberrypi.org/downloads/raspbian/)
+* Connect you SD card to your computer and use [Etcher](https://etcher.io/) to flash the Raspbian .img-file to the SD card
+* Enable SSH:
+  ```
+  cd /Volumes/boot
+  touch ssh
+  ```
+* To enable Wi-Fi create `wpa_supplicant.conf` with the following content:
+  ```
+  network={
+      ssid="YOUR_SSID"
+      psk="YOUR_WIFI_PASSWORD"
+  }
+  ```
 * Create folder `/home/pi/sensor`
 * Create file `/home/pi/sensor/package.json` with the following contents:
   ```
