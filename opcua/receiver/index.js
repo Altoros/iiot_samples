@@ -1,5 +1,7 @@
-var http = require('http');
-var querystring = require('querystring');
+var restify = require('restify');
+var server = restify.createServer({name: 'MyApp'});
+server.use(restify.bodyParser());
+
 var Pool = require('pg').Pool;
 var pool = new Pool({
   user: 'postgres',
@@ -14,18 +16,24 @@ pool.query('CREATE TABLE IF NOT EXISTS "sensor-logs" (id serial NOT NULL PRIMARY
   if (err) console.log(err);
 });
 
-http.createServer(function (req, res) {
-  req.on('data', function (chunk) {
-    var data = querystring.parse(chunk.toString());
-    console.log(data);
+server.post('/', function create(req, res, next) {
+  console.log(req.params);
 
-    //save in db
-    pool.query('INSERT INTO "sensor-logs" (data) VALUES ($1)', [data], function (err, result) {
-      if (err) console.log(err);
-    });
+  //save in db
+  pool.query('INSERT INTO "sensor-logs" (data) VALUES ($1)', [req.params], function (err, result) {
+    if (err) console.log(err);
+    res.send(201, result);
   });
-  req.on('end', function () {
-    res.writeHead(200, 'OK', {'Content-Type': 'text/html'});
-    res.end('ok')
+
+  return next();
+});
+
+server.get('/stats', function search(req, res, next) {
+  pool.query('SELECT AVG("MyVariable1"), MAX("MyVariable1"), MIN("MyVariable1"), COUNT(*), SUM("MyVariable1") FROM (SELECT (data->>\'MyVariable1\')::int "MyVariable1" FROM "sensor-logs" ORDER BY id DESC LIMIT 10) data', function (err, result) {
+    if (err) console.log(err);
+    res.send(result.rows);
   });
-}).listen(process.env.PORT || 8080);
+  return next();
+});
+
+server.listen(process.env.PORT || 8080);
