@@ -17,7 +17,20 @@ This example shows an application which runs on Raspberry Pi, collects data from
 * Ethernet cable for wired network connection
 
 ## Prepare SD card
-* [Burn Raspbian image](https://styxit.com/2017/03/14/headless-raspberry-setup.html)
+* Download [the latest Raspbian LITE image](https://www.raspberrypi.org/downloads/raspbian/)
+* Connect you SD card to your computer and use [Etcher](https://etcher.io/) to flash the Raspbian .img-file to the SD card
+* Enable SSH:
+  ```
+  cd /Volumes/boot
+  touch ssh
+  ```
+* To enable Wi-Fi create `wpa_supplicant.conf` with the following content:
+  ```
+  network={
+      ssid="YOUR_SSID"
+      psk="YOUR_WIFI_PASSWORD"
+  }
+  ```
 * Create folder `/home/pi/hub`
 * Create file `/home/pi/hub/package.json` with the following contents:
   ```
@@ -195,64 +208,69 @@ This example shows an application which runs on Raspberry Pi, collects data from
    ```
   /*global require,setInterval,console */
   var opcua = require("node-opcua");
-
+  var min = 1;
+  var max = 100;
 
   // Let's create an instance of OPCUAServer
   var server = new opcua.OPCUAServer({
-      port: 4334, // the port of the listening socket of the server
-      resourcePath: "UA/MyLittleServer", // this path will be added to the endpoint resource name
-       buildInfo : {
-          productName: "MySampleServer1",
-          buildNumber: "7658",
-          buildDate: new Date(2014,5,2)
-      }
+    port: 4334, // the port of the listening socket of the server
+    resourcePath: "UA/MyLittleServer", // this path will be added to the endpoint resource name
+    buildInfo: {
+      productName: "MySampleServer1",
+      buildNumber: "7658",
+      buildDate: new Date(2014, 5, 2)
+    }
   });
 
   function post_initialize() {
-      console.log("initialized");
-      function construct_my_address_space(server) {
-
-          var addressSpace = server.engine.addressSpace;
-
-          // declare a new object
-          var device = addressSpace.addObject({
-              organizedBy: addressSpace.rootFolder.objects,
-              browseName: "MyDevice"
-          });
-
-          // add some variables
-          // add a variable named MyVariable1 to the newly created folder "MyDevice"
-          var variable1 = 1;
-
-          // emulate variable1 changing every 500 ms
-          setInterval(function(){  variable1+=1; }, 500);
-
-          addressSpace.addVariable({
-              componentOf: device,
-              nodeId: "ns=1;s=MyVariable1", // a string nodeID
-              browseName: "MyVariable1",
-              dataType: "Double",
-              value: {
-                  get: function () {
-                      return new opcua.Variant({dataType: opcua.DataType.Double, value: variable1 });
-                  },
-                  set: function (variant) {
-                      variable1 = parseFloat(variant.value);
-                      return opcua.StatusCodes.Good;
-                  }
-              }
-          });
-      }
-      construct_my_address_space(server);
-      server.start(function() {
-          console.log("Server is now listening ... ( press CTRL+C to stop)");
-          console.log("port ", server.endpoints[0].port);
-          var endpointUrl = server.endpoints[0].endpointDescriptions()[0].endpointUrl;
-          console.log(" the primary server endpoint url is ", endpointUrl );
+    console.log("initialized");
+    function construct_my_address_space(server) {
+  
+      var addressSpace = server.engine.addressSpace;
+  
+      // declare a new object
+      var device = addressSpace.addObject({
+        organizedBy: addressSpace.rootFolder.objects,
+        browseName: "MyDevice"
       });
+
+      // add some variables
+      // add a variable named MyVariable1 to the newly created folder "MyDevice"
+      var variable1 = 1;
+  
+      // emulate variable1 changing every 500 ms
+      setInterval(function () {
+        variable1 = Math.floor(max - Math.random() * (max - min));
+      }, 500);
+  
+      addressSpace.addVariable({
+        componentOf: device,
+        nodeId: "ns=1;s=MyVariable1", // a string nodeID
+        browseName: "MyVariable1",
+        dataType: "Double",
+        value: {
+          get: function () {
+            return new opcua.Variant({dataType: opcua.DataType.Double, value: variable1});
+          },
+          set: function (variant) {
+            variable1 = parseFloat(variant.value);
+            return opcua.StatusCodes.Good;
+          }
+        }
+      });
+    }
+
+    construct_my_address_space(server);
+    server.start(function () {
+      console.log("Server is now listening ... ( press CTRL+C to stop)");
+      console.log("port ", server.endpoints[0].port);
+      var endpointUrl = server.endpoints[0].endpointDescriptions()[0].endpointUrl;
+      console.log(" the primary server endpoint url is ", endpointUrl);
+    });
   }
   server.initialize(post_initialize);
    ```
+* Configure min and max values in the beggining of file `/home/pi/sensor/index.js`
 * Create file `/home/pi/sensor/Dockerfile` with the following contents:
   ```
   FROM hypriot/rpi-node:boron-onbuild
@@ -285,7 +303,7 @@ This example shows an application which runs on Raspberry Pi, collects data from
 ## Run the receiver application on your PC
 * Install and launch PostgreSQL container:
   ```
-  docker run --name postgres-container -e POSTGRES_PASSWORD=password -it -p 5433:5432 postgres
+  docker run --rm --name postgres-container -e POSTGRES_PASSWORD=password -it -p 5433:5432 postgres
   
   docker exec -it postgres-container createdb -U postgres iot-book
   ```
@@ -406,3 +424,11 @@ This example shows an application which runs on Raspberry Pi, collects data from
   # docker stop opcua-hub-container
   ```
   <img src="./_images/hub_output.png" height="400">
+
+## Get stats
+* Open browser
+* Navigate to `http://RECEIVER-ADDRESS:8080/stats` or `https://RECEIVER-IN-PREDIX/stats`
+* Get stats
+  ```
+    [{"avg":"47.8000000000000000","max":97,"min":8,"count":"10","sum":"478"}]
+  ```
