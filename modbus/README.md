@@ -16,7 +16,20 @@ This example shows an application which runs on Raspberry Pi, collects the data 
 * Ethernet cable for wired network connection
 
 ## Prepare SD card
-* [Burn Raspbian image](https://styxit.com/2017/03/14/headless-raspberry-setup.html)
+* Download [the latest Raspbian LITE image](https://www.raspberrypi.org/downloads/raspbian/)
+* Connect you SD card to your computer and use [Etcher](https://etcher.io/) to flash the Raspbian .img-file to the SD card
+* Enable SSH:
+  ```
+  cd /Volumes/boot
+  touch ssh
+  ```
+* To enable Wi-Fi create `wpa_supplicant.conf` with the following content:
+  ```
+  network={
+      ssid="YOUR_SSID"
+      psk="YOUR_WIFI_PASSWORD"
+  }
+  ```
 * Create folder `/home/pi/hub`
 * Create file `/home/pi/hub/package.json` with the following contents:
   ```
@@ -203,7 +216,7 @@ This example shows an application which runs on Raspberry Pi, collects the data 
 ## Run the receiver application on your PC
 * Install and launch PostgreSQL container:
   ```
-  docker run --name postgres-container -e POSTGRES_PASSWORD=password -it -p 5433:5432 postgres
+  docker run --rm --name postgres-container -e POSTGRES_PASSWORD=password -it -p 5433:5432 postgres
   
   docker exec -it postgres-container createdb -U postgres iot-book
   ```
